@@ -1,0 +1,1 @@
+ALTER TABLE "user" RENAME COLUMN "favouriteNumber" TO "favourite_number";
