@@ -6,8 +6,16 @@ import { sendPasswordResetEmail } from "../emails/send-password-reset-email";
 import { sendVerificationEmail } from "../emails/send-verification-email";
 import { createAuthMiddleware } from "better-auth/api";
 import { sendWelcomeEmail } from "../emails/send-welcome-email";
+import { sendDeleteAccountVerificationEmail } from "../emails/send-delete-account-verification-email";
+import { admin as adminPlugin, twoFactor } from "better-auth/plugins";
+import { organization } from "better-auth/plugins/organization";
+import { ac, admin, user } from "@/components/auth/permissions";
+import { sendOrganizationInviteEmail } from "../emails/send-organization-invite-email";
+import { desc, eq } from "drizzle-orm";
+import { member } from "@/drizzle/schema";
 
 export const auth = betterAuth({
+	appName: "Better Auth",
 	user: {
 		changeEmail: {
 			enabled: true,
@@ -16,6 +24,12 @@ export const auth = betterAuth({
 					user: { ...user, email: newEmail },
 					url,
 				});
+			},
+		},
+		deleteUser: {
+			enabled: true,
+			sendDeleteAccountVerification: async ({ user, url }) => {
+				await sendDeleteAccountVerificationEmail({ user, url });
 			},
 		},
 		additionalFields: {
@@ -67,7 +81,34 @@ export const auth = betterAuth({
 			maxAge: 60, // 1 minute
 		},
 	},
-	plugins: [nextCookies()],
+	plugins: [
+		nextCookies(),
+		twoFactor({
+			issuer: "Better Auth",
+		}),
+		adminPlugin({
+			ac,
+			roles: {
+				admin,
+				user,
+			},
+		}),
+		organization({
+			sendInvitationEmail: async ({
+				email,
+				organization,
+				inviter,
+				invitation,
+			}) => {
+				await sendOrganizationInviteEmail({
+					invitation,
+					inviter: inviter.user,
+					organization,
+					email,
+				});
+			},
+		}),
+	],
 	database: drizzleAdapter(db, {
 		provider: "pg",
 	}),
@@ -86,5 +127,25 @@ export const auth = betterAuth({
 				}
 			}
 		}),
+	},
+	databaseHooks: {
+		session: {
+			create: {
+				before: async (userSession) => {
+					const membership = await db.query.member.findFirst({
+						where: eq(member.userId, userSession.userId),
+						orderBy: desc(member.createdAt),
+						columns: { organizationId: true },
+					});
+
+					return {
+						data: {
+							...userSession,
+							activeOrganizationId: membership?.organizationId,
+						},
+					};
+				},
+			},
+		},
 	},
 });

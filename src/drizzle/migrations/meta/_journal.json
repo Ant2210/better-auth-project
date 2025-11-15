@@ -29,6 +29,27 @@
       "when": 1762740796495,
       "tag": "0003_shallow_lady_vermin",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1763068337049,
+      "tag": "0004_powerful_wiccan",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1763120464880,
+      "tag": "0005_amused_boomer",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1763173407871,
+      "tag": "0006_broad_wilson_fisk",
+      "breakpoints": true
     }
   ]
 }

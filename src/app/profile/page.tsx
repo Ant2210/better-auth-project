@@ -1,14 +1,35 @@
-// import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { auth } from "@/lib/auth/auth";
 import { TabsContent } from "@radix-ui/react-tabs";
-import { ArrowLeft, Key, LinkIcon, Shield, Trash2, User } from "lucide-react";
+import {
+	ArrowLeft,
+	Key,
+	LinkIcon,
+	Loader2Icon,
+	Shield,
+	Trash2,
+	User,
+} from "lucide-react";
 import { headers } from "next/headers";
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ProfileUpdateForm } from "./_components/profile-update-form";
+import { ReactNode, Suspense } from "react";
+import { SetPasswordButton } from "./_components/set-password-button";
+import { ChangePasswordForm } from "./_components/change-password-form";
+import { SessionManagement } from "./_components/session-management";
+import { AccountLinking } from "./_components/account-linking";
+import { AccountDeletion } from "./_components/account-deletion";
+import { Badge } from "@/components/ui/badge";
+import { TwoFactorAuth } from "./_components/two-factor-auth";
 
 const ProfilePage = async () => {
 	const session = await auth.api.getSession({ headers: await headers() });
@@ -41,8 +62,7 @@ const ProfilePage = async () => {
 							<h1 className="text-3xl font-bold">
 								{session.user.name || "User Profile"}
 							</h1>
-							{/* TODO: Add roles */}
-							{/* <Badge>{session.user.role}</Badge>*/}
+							<Badge className="capitalize">{session.user.role}</Badge>
 						</div>
 						<p className="text-muted-foreground">{session.user.email}</p>
 					</div>
@@ -50,7 +70,7 @@ const ProfilePage = async () => {
 			</div>
 
 			<Tabs>
-				<TabsList className="grid w-full grid-cols-5">
+				<TabsList className="grid w-full grid-cols-5 mb-2">
 					<TabsTrigger value="profile">
 						<User />
 						<span className="max-sm:hidden">Profile</span>
@@ -81,19 +101,140 @@ const ProfilePage = async () => {
 					</Card>
 				</TabsContent>
 
-				{/* TODO: PICK UP HERE AT 2:07 */}
-				{/* <TabsContent value="security">
-					<Card>
+				<TabsContent value="security">
+					<LoadingSuspense>
+						<SecurityTab
+							email={session.user.email}
+							isTwoFactorEnabled={session.user.twoFactorEnabled ?? false}
+						/>
+					</LoadingSuspense>
+				</TabsContent>
+
+				<TabsContent value="sessions">
+					<LoadingSuspense>
+						<SessionsTab currentSessionToken={session.session.token} />
+					</LoadingSuspense>
+				</TabsContent>
+
+				<TabsContent value="accounts">
+					<LoadingSuspense>
+						<LinkedAccountsTab />
+					</LoadingSuspense>
+				</TabsContent>
+
+				<TabsContent value="danger">
+					<Card className="border border-destructive">
+						<CardHeader>
+							<CardTitle className="text-destructive">Danger Zone</CardTitle>
+						</CardHeader>
 						<CardContent>
-							<LoadingSuspense>
-                <SecurityTab email={session.user.email} />
-              </LoadingSuspense>
+							<AccountDeletion />
 						</CardContent>
 					</Card>
-				</TabsContent> */}
+				</TabsContent>
 			</Tabs>
 		</div>
 	);
 };
 
 export default ProfilePage;
+
+const LinkedAccountsTab = async () => {
+	const accounts = await auth.api.listUserAccounts({
+		headers: await headers(),
+	});
+	const nonCredentialAccounts = accounts.filter(
+		(a) => a.providerId !== "credential",
+	);
+
+	return (
+		<Card>
+			<CardContent>
+				<AccountLinking currentAccounts={nonCredentialAccounts} />
+			</CardContent>
+		</Card>
+	);
+};
+
+const SessionsTab = async ({
+	currentSessionToken,
+}: {
+	currentSessionToken: string;
+}) => {
+	const sessions = await auth.api.listSessions({ headers: await headers() });
+
+	return (
+		<Card>
+			<CardContent>
+				<SessionManagement
+					sessions={sessions}
+					currentSessionToken={currentSessionToken}
+				/>
+			</CardContent>
+		</Card>
+	);
+};
+
+const SecurityTab = async ({
+	email,
+	isTwoFactorEnabled,
+}: {
+	email: string;
+	isTwoFactorEnabled: boolean;
+}) => {
+	const accounts = auth.api.listUserAccounts({ headers: await headers() });
+	const hasPasswordAccount = (await accounts).some(
+		(a) => a.providerId === "credential",
+	);
+
+	return (
+		<div className="space-y-6">
+			{hasPasswordAccount ? (
+				<Card>
+					<CardHeader>
+						<CardTitle>Change Password</CardTitle>
+						<CardDescription>
+							Update your password for improved security
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<ChangePasswordForm />
+					</CardContent>
+				</Card>
+			) : (
+				<Card>
+					<CardHeader>
+						<CardTitle>Set Password</CardTitle>
+						<CardDescription>
+							We will send you a password reset email to set up a password
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<SetPasswordButton email={email} />
+					</CardContent>
+				</Card>
+			)}
+			{hasPasswordAccount && (
+				<Card>
+					<CardHeader className="flex items-center justify-between gap-2">
+						<CardTitle>Two-Factor Authentication</CardTitle>
+						<Badge variant={isTwoFactorEnabled ? "default" : "outline"}>
+							{isTwoFactorEnabled ? "Enabled" : "Disabled"}
+						</Badge>
+					</CardHeader>
+					<CardContent>
+						<TwoFactorAuth isEnabled={isTwoFactorEnabled} />
+					</CardContent>
+				</Card>
+			)}
+		</div>
+	);
+};
+
+const LoadingSuspense = ({ children }: { children: ReactNode }) => {
+	return (
+		<Suspense fallback={<Loader2Icon className="size-20 animate-spin" />}>
+			{children}
+		</Suspense>
+	);
+};

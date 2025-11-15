@@ -51,8 +51,12 @@ export const SignInTab = ({
 				callbackURL: "/",
 			},
 			{
-				onSuccess: () => {
-					router.push("/");
+				async onSuccess(context) {
+					if (context.data.twoFactorRedirect) {
+						router.push("/auth/2fa");
+					} else {
+						router.push("/");
+					}
 				},
 				onError: (ctx) => {
 					if (
